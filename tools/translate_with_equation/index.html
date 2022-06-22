@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>数式を含む英文を翻訳するためのツール</title>
+        <link rel="stylesheet" href="main.css">
+
+        <script type="text/javascript" src="main.js"></script>
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+        <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    </head>
+    <body>
+        <p>DeepL API key</p>
+        <input type="text" id="deepl_api_key" autocomplete="username">
+
+        <div id="button_block">
+            <input id="run_translation" type="button" value="翻訳を実行" onclick="runTranslation()">
+            <input id="reset_button" type="button" value="リセット" onclick="resetTextbox()">
+        </div>
+
+        <div id="input_block">
+            <p>読み取ったインライン数式を含むLaTeXコードを入力</p>
+            <textarea class="text_box" id="input_code"></textarea>
+        </div>
+        <div id="output_block">
+            <p>結果</p>
+            <div id="output"></div>
+        </div>
+        
+    </body>
+</html>
