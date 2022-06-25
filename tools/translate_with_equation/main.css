@@ -46,3 +46,8 @@
 #run_translation:active {
     background: #fafafa; 
 }
+
+::placeholder {
+    font-size: 0.9em;
+    color: #aaa;
+ }
