@@ -18,7 +18,7 @@ function runTranslation() {
 
     const API_KEY = document.getElementById("deepl_api_key").value;
     if (API_KEY == "") {
-        document.getElementById('output').textContent = "Please enter your deepL API key";
+        document.getElementById('output').innerHTML = "<a href='https://www.deepl.com/pro#developer'>このリンク</a>からDeepLのAPIキーを取得し，入力してください．.";
         return;
     }
 

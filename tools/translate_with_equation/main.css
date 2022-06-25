@@ -34,6 +34,15 @@
 #run_translation {
     width: 10em;
     height: 5em;
-    background: #e9d1ad;
+    background: #fddeae;
     border: 1px solid #999;    
+}
+
+#run_translation:hover {
+    background: #fff5db; 
+}
+
+
+#run_translation:active {
+    background: #fafafa; 
 }
