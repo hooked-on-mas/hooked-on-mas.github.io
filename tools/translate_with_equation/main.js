@@ -4,26 +4,24 @@ function runTranslation() {
     const substi_pre = "EQ";
     const len_substi_num = 2;
 
-    const list_exc_words = [",", ".", "\text"];
-    const reg_exc_words  = /,|\.|\\text/;
-
     let equation_list = [];
 
     // 初期化
-    let idx_deli = 0;
+    let idx = 0;
     let cnt = 0;
 
     let idx_start = 0;
     let idx_end = 0;
     let equation = "";
     let substi = "";
-    let b_inline = true;
 
-    let tmp_idx_end = 0;
+    let is_inline_eq = false;
 
-    let idx_list_start_exc = [];    
-    let word_exc = "";
-    let equation_first = "";
+    let reduced_equation = "";
+    let separated_equation = "";
+    let substi_code_list = [];
+    let idx_punc = 0;
+    
 
     const API_KEY = document.getElementById("deepl_api_key").value;
     if (API_KEY == "") {
@@ -34,8 +32,7 @@ function runTranslation() {
     let latex_code = document.getElementById("input_code").value;
 
     while(true){
-        console.log(idx_deli)
-        idx_start = latex_code.indexOf('$', idx_deli);
+        idx_start = latex_code.indexOf('$', idx);
         idx_end = latex_code.indexOf('$', idx_start + 1);
 
         // これ以上数式がなければ，ループを終了
@@ -52,7 +49,7 @@ function runTranslation() {
             // $$...$$を\[...\]に変換
             equation = "\\[" + equation.slice(2, equation.length - 2) + "\\]";
 
-            b_inline = false;
+            is_inline_eq = false;
             
         // インライン数式の場合
         } else {
@@ -61,49 +58,65 @@ function runTranslation() {
             // $...$を\(...\)に変換
             equation = "\\(" + equation.slice(1, equation.length - 1) + "\\)";
 
-            b_inline = true;
+            is_inline_eq = true;
+
         }
 
-        // list_exc_wordsの中身がequation内にあった場合
+        // 数式を一旦equation_listに保管して，EQxxで置き換えて翻訳し，数式に戻す
+        // 置き換える時のコードはsubsti_code_listに入れる
 
-        while(reg_exc_words.test(equation)){
-            console.log(equation)
+        reduced_equation = equation;
+        separated_equation = "";
+        substi_code_list = [];
 
-            idx_list_start_exc = [];
-            for (let i = 0; i < list_exc_words.length; i++) {
-                idx_list_start_exc.push(equation.indexOf(list_exc_words[i], 0));
+        while (true) {
+
+            idx_punc = reduced_equation.search(/\.|,|;\:/);
+            str_punc = reduced_equation[idx_punc];
+
+            if (idx_punc == -1) {
+                break;
             }
 
-            idx_start_exc = Math.min(...idx_list_start_exc);                      // 排除すべき単語の始まりのインデックス
-            word_exc = list_exc_words[idx_list_start_exc.indexOf(idx_start_exc)]; // 排除すべき単語
-            idx_end_exc = idx_start_exc + word_exc.length;
+            // reduced_equation -> separated_equation + punctuation + reduced_equation
+            separated_equation = reduced_equation.slice(0, idx_punc);
+            reduced_equation = reduced_equation.slice(idx_punc + 1, reduced_equation.length);
 
-            equation_first = equation.slice(0, idx_start_exc) + b_inline ? "\\)" : "\\]";
+            // separated_equation : \( xxxx  -> \( xxxx \)
+            // reduced_equation   :  xxxx \) -> \( xxxx \)
+            separated_equation = separated_equation + (is_inline_eq ? "\\)" : "\\]");
+            reduced_equation   = (is_inline_eq ? "\\(" : "\\[") + reduced_equation;
 
-            // 排除すべき単語以前をequation_listに追加し，代替で置き換える．
-            equation_list.push(equation_first);
-            equation = equation.slice(idx_end_exc + 1, equation.length);
-
-            tmp_idx_end = idx_end;
-            idx_end = idx_start + (idx_start_exc - 1);
-            latex_code = replaceEquationWithSub(latex_code, cnt, idx_start, idx_end, substi_pre, len_substi_num);
+            substi = substi_pre + String(cnt).padStart(len_substi_num, '0');
             cnt = cnt + 1;
 
-            idx_end = tmp_idx_end;
-            idx_start = idx_start + idx_end_exc + 1;
-        }
-    
-        equation_list.push(equation);
-        latex_code = replaceEquationWithSub(latex_code, cnt, idx_start, idx_end, substi_pre, len_substi_num);
+            substi_code_list.push(substi);
+            substi_code_list.push(str_punc);
+            substi_code_list.push(" ");
 
-        idx_deli = idx_start + substi_pre.length + len_substi_num;
-        cnt = cnt + 1;
+            equation_list.push(separated_equation);
+
+        }
+        
+        if (!/^\\(\(|\[)\s*\\(\)|\])$/.test(reduced_equation)) {
+
+            // 数式を代替（EQxxxx）に変換．
+            substi = substi_pre + String(cnt).padStart(len_substi_num, '0');
+            cnt = cnt + 1;
+
+            substi_code_list.push(substi);
+            equation_list.push(reduced_equation);
+            
+        }
+
+        latex_code = latex_code.slice(0, idx_start) + substi_code_list.join("") + latex_code.slice(idx_end + 1, latex_code.length);
+
+        idx = idx_start + substi_code_list.join("").length;
     }
 
     latex_code = latex_code.replace(/\r?\n/g, ' ');
 
     // 翻訳
-
     let content = encodeURI('auth_key=' + API_KEY + '&text=' + latex_code + '&source_lang=EN&target_lang=JA');
     let url = API_URL + '?' + content;
 
@@ -140,13 +153,4 @@ function resetTextbox() {
     
     document.getElementById("input_code").value = "";
     document.getElementById("output").textContent = "";
-}
-
-// 数式をEQxxで置換
-function replaceEquationWithSub(latex_code, cnt, idx_start, idx_end, substi_pre, len_substi_num) {
-
-    let substi = substi_pre + String(cnt).padStart(len_substi_num, '0');
-
-    return latex_code.slice(0, idx_start) + substi + latex_code.slice(idx_end+1, latex_code.length);
-
 }
