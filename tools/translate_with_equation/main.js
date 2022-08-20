@@ -25,7 +25,7 @@ function runTranslation() {
 
     const API_KEY = document.getElementById("deepl_api_key").value;
     if (API_KEY == "") {
-        document.getElementById('output').innerHTML = "<a href='https://www.deepl.com/pro#developer'>このリンク</a>からDeepLのAPIキーを取得し，入力してください．.";
+        document.getElementById('result').innerHTML = "<a href='https://www.deepl.com/pro#developer'>このリンク</a>からDeepLのAPIキーを取得し，入力してください．.";
         return;
     }
 
@@ -109,12 +109,9 @@ function runTranslation() {
             
         }
 
-        latex_code = latex_code.slice(0, idx_start) + substi_code_list.join("") + latex_code.slice(idx_end + 1, latex_code.length);
-
+        latex_code = latex_code.slice(0, idx_start) + " " + substi_code_list.join("") + " " + latex_code.slice(idx_end + 1, latex_code.length);
         idx = idx_start + substi_code_list.join("").length;
     }
-
-    latex_code = latex_code.replace(/\r?\n/g, ' ');
 
     // 翻訳
     let content = encodeURI('auth_key=' + API_KEY + '&text=' + latex_code + '&source_lang=EN&target_lang=JA');
@@ -127,7 +124,7 @@ function runTranslation() {
             if (response.ok) {
                 return response.json();
             } else {
-                throw new Error("Could not reach the API: " + response.statusText);
+                throw new Error("DeepL APIにアクセスできません．");
             }
         }).then(function(data) {
             translation_result = data["translations"][0]["text"];
@@ -141,16 +138,16 @@ function runTranslation() {
                 translation_result = translation_result.replace(substi, equation);
             }
 
-            document.getElementById('output').textContent = translation_result;
+            document.getElementById('result').textContent = translation_result;
             MathJax.typesetPromise()
 
         }).catch(function(error) {
-            document.getElementById('output').textContent = error.message;
+            document.getElementById('result').textContent = error.message;
         });
 }
 
 function resetTextbox() {
     
     document.getElementById("input_code").value = "";
-    document.getElementById("output").textContent = "";
+    document.getElementById("result").textContent = "";
 }
