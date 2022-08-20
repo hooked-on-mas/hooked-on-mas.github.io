@@ -16,8 +16,9 @@
     height: 40em;
 }
 
-#output{
+#result{
     padding: 10px;
+    white-space: pre-wrap;
 }
 
 #input_block {
