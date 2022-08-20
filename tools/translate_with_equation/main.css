@@ -19,6 +19,8 @@
 #result{
     padding: 10px;
     white-space: pre-wrap;
+    font-size: 16px;
+    line-height: 25px;
 }
 
 #input_block {
@@ -26,6 +28,7 @@
     width: 50%;
     height: auto;
  }
+ 
 #output_block {
     float: right;
     width: 50%;

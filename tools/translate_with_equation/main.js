@@ -109,8 +109,7 @@ function runTranslation() {
             
         }
 
-        latex_code = latex_code.slice(0, idx_start) + substi_code_list.join("") + latex_code.slice(idx_end + 1, latex_code.length);
-
+        latex_code = latex_code.slice(0, idx_start) + " " + substi_code_list.join("") + " " + latex_code.slice(idx_end + 1, latex_code.length);
         idx = idx_start + substi_code_list.join("").length;
     }
 
