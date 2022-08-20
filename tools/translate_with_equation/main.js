@@ -25,7 +25,7 @@ function runTranslation() {
 
     const API_KEY = document.getElementById("deepl_api_key").value;
     if (API_KEY == "") {
-        document.getElementById('output').innerHTML = "<a href='https://www.deepl.com/pro#developer'>このリンク</a>からDeepLのAPIキーを取得し，入力してください．.";
+        document.getElementById('result').innerHTML = "<a href='https://www.deepl.com/pro#developer'>このリンク</a>からDeepLのAPIキーを取得し，入力してください．.";
         return;
     }
 
@@ -119,15 +119,13 @@ function runTranslation() {
     let url = API_URL + '?' + content;
 
     let translation_result = "";
-
-    console.log(latex_code)
   
     fetch(url)
         .then(function(response) {
             if (response.ok) {
                 return response.json();
             } else {
-                throw new Error("Could not reach the API: " + response.statusText);
+                throw new Error("DeepL APIにアクセスできません．");
             }
         }).then(function(data) {
             translation_result = data["translations"][0]["text"];
@@ -141,17 +139,16 @@ function runTranslation() {
                 translation_result = translation_result.replace(substi, equation);
             }
 
-            document.getElementById('output').textContent = translation_result;
-            console.log(translation_result)
+            document.getElementById('result').textContent = translation_result;
             MathJax.typesetPromise()
 
         }).catch(function(error) {
-            document.getElementById('output').textContent = error.message;
+            document.getElementById('result').textContent = error.message;
         });
 }
 
 function resetTextbox() {
     
     document.getElementById("input_code").value = "";
-    document.getElementById("output").textContent = "";
+    document.getElementById("result").textContent = "";
 }
