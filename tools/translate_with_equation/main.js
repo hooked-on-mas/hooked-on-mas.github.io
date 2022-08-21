@@ -8,6 +8,7 @@ function runTranslation() {
     let equation_list = [];
 
     // 初期化
+    let idx_newline = 0;
     let idx = 0;
     let cnt = 0;
 
@@ -23,7 +24,6 @@ function runTranslation() {
     let substi_code_list = [];
     let idx_punc = 0;
     
-
     const API_KEY = document.getElementById("deepl_api_key").value;
     if (API_KEY == "") {
         document.getElementById('result').innerHTML = "<a href='https://www.deepl.com/pro#developer'>このリンク</a>からDeepLのAPIキーを取得し，入力してください．.";
@@ -32,9 +32,33 @@ function runTranslation() {
 
     let latex_code = document.getElementById("input_code").value;
 
+    // LaTeXでは1回の改行は無視されて，2回の改行でやっと改行になるという仕様に対応するため，
+    // 1改行の改行は削除して，2回の改行はそのままにする．
+    let reduced_latex_code = latex_code;
+    let new_latex_code = "";
+    while (true) {
+        idx_newline = reduced_latex_code.search(/[^\n]\n[^\n]/);
+
+        if (idx_newline == -1) {
+            new_latex_code = new_latex_code + reduced_latex_code;
+            break;
+        }
+
+        console.log(reduced_latex_code.slice(0, idx_newline+1)) 
+
+        new_latex_code = new_latex_code + reduced_latex_code.slice(0, idx_newline + 1);
+        reduced_latex_code = reduced_latex_code.slice(idx_newline + 2);
+
+        idx_newline = idx_newline + 1;
+    }
+
+    latex_code = new_latex_code;
+
+    console.log(latex_code)
+
     // 数式を一旦equation_listに保管して，EQxxで置き換える
     // 置換後のテキストはsubsti_code_listに入れる
-    while(true){
+    while (true) {
         idx_start = latex_code.indexOf('$', idx);
         idx_end = latex_code.indexOf('$', idx_start + 1);
 
@@ -75,7 +99,7 @@ function runTranslation() {
             // 数式内にカンマ・ピリオドがある場合，前後で分割して，2つの数式にする
             while (true) {
 
-                idx_punc = reduced_equation.search(/\.|,|;|:/);
+                idx_punc = reduced_equation.search(/\.|,|;/);
                 if (idx_punc == -1) {
                     break;
                 }
@@ -103,7 +127,6 @@ function runTranslation() {
 
                 substi_code_list.push(substi);
                 substi_code_list.push(str_punc);
-                substi_code_list.push(" ");
 
                 equation_list.push(separated_equation);
 
@@ -128,7 +151,7 @@ function runTranslation() {
         // 数式の末尾にカンマ・ピリオドがある場合のみ，それを数式の外に出す．
         } else {
 
-            idx_punc = equation.search(/(\.|,|;|:)\s*\\\\]/);
+            idx_punc = equation.search(/(\.|,|;)\s*\\\\]/);
             no_end_punc = (idx_punc == -1);
 
             // 数式を代替（EQxxxx）に変換．
@@ -145,7 +168,6 @@ function runTranslation() {
 
                 substi_code_list.push(substi);
                 substi_code_list.push(str_punc);
-                substi_code_list.push(" ");
 
                 // 数式からカンマ・ピリオドを抜く
                 equation = equation.slice(0, idx_punc) + " //]";
@@ -158,6 +180,8 @@ function runTranslation() {
         latex_code = latex_code.slice(0, idx_start) + " " + substi_code_list.join("") + " " + latex_code.slice(idx_end + 1);
         idx = idx_start + substi_code_list.join("").length;
     }
+
+    console.log(latex_code)
 
     // 翻訳
     let content = encodeURI('auth_key=' + API_KEY + '&text=' + latex_code + '&source_lang=EN&target_lang=JA');
