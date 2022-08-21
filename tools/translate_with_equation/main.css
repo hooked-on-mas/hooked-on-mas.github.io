@@ -1,3 +1,12 @@
+h1 {
+    font-size: 25px;
+}
+
+h2 {
+    font-size: 16px;
+    
+}
+
 #deepl_api_key{
     width: 20em;
     padding: 3px;
@@ -36,10 +45,12 @@
 }
 
 #run_translation {
-    width: 10em;
-    height: 5em;
+    width: 9em;
+    height: 4em;
     background: #fddeae;
-    border: 1px solid #999;    
+    border: 1px solid #999;
+    font-size: 16px;
+    font-weight: bold;
 }
 
 #run_translation:hover {
