@@ -1,14 +1,17 @@
+function resetTextbox() {
+    
+    document.getElementById("input_code").value = "";
+    document.getElementById("result").textContent = "";
+}
+
 function runTranslation() {
     const API_URL = 'https://api-free.deepl.com/v2/translate';
 
-    const substi_pre = "EQ";
-    const substi_pre_small = "eq";
-    const len_substi_num = 2;
+    const substi_sets = {pre:"EQ", pre_small:"eq", len_num: 2};
 
     let equation_list = [];
 
     // 初期化
-    let idx_newline = 0;
     let idx = 0;
     let cnt = 0;
 
@@ -32,29 +35,7 @@ function runTranslation() {
 
     let latex_code = document.getElementById("input_code").value;
 
-    // LaTeXでは1回の改行は無視されて，2回の改行でやっと改行になるという仕様に対応するため，
-    // 1改行の改行は削除して，2回の改行はそのままにする．
-    let reduced_latex_code = latex_code;
-    let new_latex_code = "";
-    while (true) {
-        idx_newline = reduced_latex_code.search(/[^\n]\n[^\n]/);
-
-        if (idx_newline == -1) {
-            new_latex_code = new_latex_code + reduced_latex_code;
-            break;
-        }
-
-        console.log(reduced_latex_code.slice(0, idx_newline+1)) 
-
-        new_latex_code = new_latex_code + reduced_latex_code.slice(0, idx_newline + 1);
-        reduced_latex_code = reduced_latex_code.slice(idx_newline + 2);
-
-        idx_newline = idx_newline + 1;
-    }
-
-    latex_code = new_latex_code;
-
-    console.log(latex_code)
+    latex_code = preprocessLatexCode(latex_code);
 
     // 数式を一旦equation_listに保管して，EQxxで置き換える
     // 置換後のテキストはsubsti_code_listに入れる
@@ -122,7 +103,7 @@ function runTranslation() {
                 separated_equation = keepLeftRightPair(separated_equation);
 
                 // separated_equationをequation_listに，separated_equationに対する代替（EQxxxx）をsubsti_code_listに入れる
-                substi = substi_pre + String(cnt).padStart(len_substi_num, '0');
+                substi = substi_sets.pre + String(cnt).padStart(substi_sets.len_num, '0');
                 cnt = cnt + 1;
 
                 substi_code_list.push(substi);
@@ -139,7 +120,7 @@ function runTranslation() {
                 reduced_equation = keepLeftRightPair(reduced_equation);
 
                 // 数式を代替（EQxxxx）に変換．
-                substi = substi_pre + String(cnt).padStart(len_substi_num, '0');
+                substi = substi_sets.pre + String(cnt).padStart(substi_sets.len_num, '0');
                 cnt = cnt + 1;
 
                 substi_code_list.push(substi);
@@ -155,7 +136,7 @@ function runTranslation() {
             no_end_punc = (idx_punc == -1);
 
             // 数式を代替（EQxxxx）に変換．
-            substi = substi_pre + String(cnt).padStart(len_substi_num, '0');
+            substi = substi_sets.pre + String(cnt).padStart(substi_sets.len_num, '0');
             cnt = cnt + 1;
             
             if (no_end_punc) {
@@ -181,13 +162,8 @@ function runTranslation() {
         idx = idx_start + substi_code_list.join("").length;
     }
 
-    console.log(latex_code)
-
     // 翻訳
-    let content = encodeURI('auth_key=' + API_KEY + '&text=' + latex_code + '&source_lang=EN&target_lang=JA');
-    let url = API_URL + '?' + content;
-
-    let translation_result = "";
+    let url = API_URL + '?' + encodeURI('auth_key=' + API_KEY + '&text=' + latex_code + '&source_lang=EN&target_lang=JA');
   
     fetch(url)
         .then(function(response) {
@@ -196,21 +172,10 @@ function runTranslation() {
             } else {
                 throw new Error("DeepL APIにアクセスできません．");
             }
-        }).then(function(data) {
-            translation_result = data["translations"][0]["text"];
-
-            // 翻訳結果の記号EQxxに実際の数式を代入
-            for (let i = 0; i < equation_list.length; i++) {
-
-                equation = equation_list[i];
-
-                substi = substi_pre + String(i).padStart(len_substi_num, '0');
-                translation_result = translation_result.replace(substi, equation);
-
-                // たまに翻訳によって，"EQxxxx"から"eqxxxx"になることがあるので．
-                substi = substi_pre_small + String(i).padStart(len_substi_num, '0');
-                translation_result = translation_result.replace(substi, equation);
-            }
+        }).then(function (data) {
+            
+            let translation_result = data["translations"][0]["text"];
+            translation_result = replaceSubstiWithEquation(translation_result, equation_list, substi_sets);
 
             document.getElementById('result').textContent = translation_result;
             MathJax.typesetPromise()
@@ -220,10 +185,28 @@ function runTranslation() {
         });
 }
 
-function resetTextbox() {
+function preprocessLatexCode(latex_code) {
+    // LaTeXでは1回の改行は無視されて，2回の改行でやっと改行になるという仕様に対応するため，
+    // 1改行の改行は削除して，2回の改行はそのままにする．
     
-    document.getElementById("input_code").value = "";
-    document.getElementById("result").textContent = "";
+    let idx_newline = 0;
+    let new_latex_code = "";
+
+    while (true) {
+        idx_newline = latex_code.search(/[^\n]\n[^\n]/);
+
+        if (idx_newline == -1) {
+            new_latex_code = new_latex_code + latex_code;
+            break;
+        }
+
+        new_latex_code = new_latex_code + latex_code.slice(0, idx_newline + 1);
+        latex_code = latex_code.slice(idx_newline + 2);
+
+        idx_newline = idx_newline + 1;
+    }
+
+    return new_latex_code
 }
 
 function keepLeftRightPair(equation) {
@@ -243,4 +226,25 @@ function keepLeftRightPair(equation) {
 
     return equation
 
+}
+
+function replaceSubstiWithEquation(translation_result, equation_list, substi_sets) {
+    // 翻訳結果の記号EQxxに実際の数式を代入
+
+    let equation = "";
+    let substi = "";
+
+    for (let i = 0; i < equation_list.length; i++) {
+
+        equation = equation_list[i];
+
+        substi = substi_sets.pre + String(i).padStart(substi_sets.len_num, '0');
+        translation_result = translation_result.replace(substi, equation);
+
+        // たまに翻訳によって，"EQxxxx"から"eqxxxx"になることがあるので．
+        substi = substi_sets.pre_small + String(i).padStart(substi_sets.len_num, '0');
+        translation_result = translation_result.replace(substi, equation);
+    }
+
+    return translation_result
 }
