@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
     <head>
-        <title>数式を含む英文を翻訳するツール</title>
+        <title>DeEqL --- 数式を含む英文を翻訳するツール</title>
         <meta charset="UTF-8">
         <meta name=”description” content=”数式を含む英文をDeepLで翻訳するツール．これを使えば英語が苦手な人でも，数式の入ったWikipediaなどのサイトや論文をDeepLで簡単に翻訳できるようになります．” />
         
@@ -13,23 +13,24 @@
 
     </head>
     <body>
-        <a href="https://hooked-on-mas.hatenablog.com/entry/2022/06/26/002728?_ga=2.94583961.4439452.1656160964-525354746.1602505894">使い方 (How to use this)</a>
-        <a href="https://qiita.com/hook125/items/df5cdd2a82d964ffe3dd">実装方法 (How to make this)</a>
+        <h1>DeEqL</h1>
+        <a href="https://hooked-on-mas.hatenablog.com/entry/2022/06/26/002728?_ga=2.94583961.4439452.1656160964-525354746.1602505894">How to use</a>
+        <a href="https://qiita.com/hook125/items/df5cdd2a82d964ffe3dd">How to make</a>
 
-        <p>DeepL API key</p>
+        <h2>1. DeepL API keyを入力</h2>
         <input type="text" id="deepl_api_key" placeholder="01234567-89a-bcde-fghi-jklmnopqrstu:fx">
 
         <div id="button_block">
-            <input id="run_translation" type="button" value="翻訳を実行" onclick="runTranslation()">
+            <input id="run_translation" type="button" value="3. 翻訳を実行" onclick="runTranslation()">
             <input id="reset_button" type="button" value="リセット" onclick="resetTextbox()">
         </div>
 
         <div id="input_block">
-            <p>Mathpixで読み取ったLaTeXコードを入力</p>
+            <h2>2. （Mathpixで読み取った）LaTeXコードを入力</h2>
             <textarea class="text_box" id="input_code"></textarea>
         </div>
         <div id="output_block">
-            <p>結果</p>
+            <h2>4. 結果</h2>
             <div id="result"></div>
         </div>
         
