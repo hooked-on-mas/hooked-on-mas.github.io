@@ -2,6 +2,7 @@ function runTranslation() {
     const API_URL = 'https://api-free.deepl.com/v2/translate';
 
     const substi_pre = "EQ";
+    const substi_pre_small = "eq";
     const len_substi_num = 2;
 
     let equation_list = [];
@@ -30,6 +31,9 @@ function runTranslation() {
     }
 
     let latex_code = document.getElementById("input_code").value;
+
+    // 数式を一旦equation_listに保管して，EQxxで置き換える
+    // 置換後のテキストはsubsti_code_listに入れる
 
     while(true){
         idx_start = latex_code.indexOf('$', idx);
@@ -62,54 +66,79 @@ function runTranslation() {
 
         }
 
-        // 数式を一旦equation_listに保管して，EQxxで置き換えて翻訳し，数式に戻す
-        // 置き換える時のコードはsubsti_code_listに入れる
-
-        reduced_equation = equation;
-        separated_equation = "";
         substi_code_list = [];
 
-        while (true) {
+        if (is_inline_eq) {
 
-            idx_punc = reduced_equation.search(/\.|,|;\:/);
-            str_punc = reduced_equation[idx_punc];
+            reduced_equation = equation;
+            separated_equation = "";
 
-            if (idx_punc == -1) {
-                break;
+            // 数式内にカンマ・ピリオドがある場合，前後で分割して，2つの数式にする
+            while (true) {
+
+                idx_punc = reduced_equation.search(/\.|,|;\:/);
+                str_punc = reduced_equation[idx_punc];
+
+                if (idx_punc == -1) {
+                    break;
+                }
+
+                // カンマ・ピリオドの前をseparated_equation, 後をreduced_equationとする
+                // reduced_equation -> separated_equation + punctuation + reduced_equation
+                separated_equation = reduced_equation.slice(0, idx_punc);
+                reduced_equation = reduced_equation.slice(idx_punc + 1);
+
+                // 分割するだけでは，\( \)の記号も分割されてしまいエラーが出るので，付け足す
+                // e.g.
+                // separated_equation : \( xxxx  -> \( xxxx \)
+                // reduced_equation   :  xxxx \) -> \( xxxx \)
+                separated_equation = separated_equation + "\\)";
+                reduced_equation = "\\(" + reduced_equation;
+                
+                // 等式が\left または \right を含む場合，カンマ・ピリオドによって分断されるとエラーが出るので，それの対策．
+                separated_equation = keepLeftRightPair(separated_equation);
+
+                // separated_equationをequation_listに，separated_equationに対する代替（EQxxxx）をsubsti_code_listに入れる
+                substi = substi_pre + String(cnt).padStart(len_substi_num, '0');
+                cnt = cnt + 1;
+
+                substi_code_list.push(substi);
+                substi_code_list.push(str_punc);
+                substi_code_list.push(" ");
+
+                equation_list.push(separated_equation);
+
             }
 
-            // reduced_equation -> separated_equation + punctuation + reduced_equation
-            separated_equation = reduced_equation.slice(0, idx_punc);
-            reduced_equation = reduced_equation.slice(idx_punc + 1, reduced_equation.length);
+            // separated_equationについてもseparated_equationと同様の処理をする
+            if (!/^\\(\(|\[)\s*\\(\)|\])$/.test(reduced_equation)) {
 
-            // separated_equation : \( xxxx  -> \( xxxx \)
-            // reduced_equation   :  xxxx \) -> \( xxxx \)
-            separated_equation = separated_equation + (is_inline_eq ? "\\)" : "\\]");
-            reduced_equation   = (is_inline_eq ? "\\(" : "\\[") + reduced_equation;
+                // 等式が\left または \right を含む場合，カンマ・ピリオドによって分断されるとエラーが出るので，それの対策．
+                reduced_equation = keepLeftRightPair(reduced_equation);
 
-            substi = substi_pre + String(cnt).padStart(len_substi_num, '0');
-            cnt = cnt + 1;
+                // 数式を代替（EQxxxx）に変換．
+                substi = substi_pre + String(cnt).padStart(len_substi_num, '0');
+                cnt = cnt + 1;
 
-            substi_code_list.push(substi);
-            substi_code_list.push(str_punc);
-            substi_code_list.push(" ");
+                substi_code_list.push(substi);
+                equation_list.push(reduced_equation);
+                
+            }
 
-            equation_list.push(separated_equation);
-
-        }
-        
-        if (!/^\\(\(|\[)\s*\\(\)|\])$/.test(reduced_equation)) {
+        // インライン数式でないなら，カンマ・ピリオド前後で分割する必要はない．
+        } else {
 
             // 数式を代替（EQxxxx）に変換．
             substi = substi_pre + String(cnt).padStart(len_substi_num, '0');
             cnt = cnt + 1;
 
             substi_code_list.push(substi);
-            equation_list.push(reduced_equation);
-            
+            equation_list.push(equation);
+
         }
 
-        latex_code = latex_code.slice(0, idx_start) + " " + substi_code_list.join("") + " " + latex_code.slice(idx_end + 1, latex_code.length);
+        // 配列として蓄えていた代替（EQxxxx）を実際の文字列に入れる
+        latex_code = latex_code.slice(0, idx_start) + " " + substi_code_list.join("") + " " + latex_code.slice(idx_end + 1);
         idx = idx_start + substi_code_list.join("").length;
     }
 
@@ -129,12 +158,16 @@ function runTranslation() {
         }).then(function(data) {
             translation_result = data["translations"][0]["text"];
 
-            // 翻訳結果の数式に実際の数式を代入
+            // 翻訳結果の記号EQxxに実際の数式を代入
             for (let i = 0; i < equation_list.length; i++) {
 
                 equation = equation_list[i];
 
                 substi = substi_pre + String(i).padStart(len_substi_num, '0');
+                translation_result = translation_result.replace(substi, equation);
+
+                // たまに翻訳によって，"EQxxxx"から"eqxxxx"になることがあるので．
+                substi = substi_pre_small + String(i).padStart(len_substi_num, '0');
                 translation_result = translation_result.replace(substi, equation);
             }
 
@@ -150,4 +183,30 @@ function resetTextbox() {
     
     document.getElementById("input_code").value = "";
     document.getElementById("result").textContent = "";
+}
+
+function keepLeftRightPair(equation) {
+
+    console.log(equation)
+
+    let n_left  = (equation.match(/\\left[^a-z]/g)  || []).length;
+    let n_right = (equation.match(/\\right[^a-z]/g) || []).length;
+    let len_equation = equation.length;
+    let len_equation_bra = 2; // the length of \\[ or \\]
+
+    console.log(n_left)
+    console.log(n_right)
+
+    if (n_left == n_right) {
+        ;
+    } else if (n_left > n_right) {
+        equation = equation.slice(0, len_equation - len_equation_bra) + " \\right . " + equation.slice(len_equation - len_equation_bra);
+    } else {
+        equation = equation.slice(0, len_equation_bra) + " \\left . " + equation.slice(2);
+    }
+    
+    console.log(equation)
+
+    return equation
+
 }
