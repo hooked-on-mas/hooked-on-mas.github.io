@@ -34,7 +34,6 @@ function runTranslation() {
 
     // 数式を一旦equation_listに保管して，EQxxで置き換える
     // 置換後のテキストはsubsti_code_listに入れる
-
     while(true){
         idx_start = latex_code.indexOf('$', idx);
         idx_end = latex_code.indexOf('$', idx_start + 1);
@@ -76,12 +75,12 @@ function runTranslation() {
             // 数式内にカンマ・ピリオドがある場合，前後で分割して，2つの数式にする
             while (true) {
 
-                idx_punc = reduced_equation.search(/\.|,|;\:/);
-                str_punc = reduced_equation[idx_punc];
-
+                idx_punc = reduced_equation.search(/\.|,|;|:/);
                 if (idx_punc == -1) {
                     break;
                 }
+
+                str_punc = reduced_equation[idx_punc];
 
                 // カンマ・ピリオドの前をseparated_equation, 後をreduced_equationとする
                 // reduced_equation -> separated_equation + punctuation + reduced_equation
@@ -126,15 +125,33 @@ function runTranslation() {
             }
 
         // インライン数式でないなら，カンマ・ピリオド前後で分割する必要はない．
+        // 数式の末尾にカンマ・ピリオドがある場合のみ，それを数式の外に出す．
         } else {
+
+            idx_punc = equation.search(/(\.|,|;|:)\s*\\\\]/);
+            no_end_punc = (idx_punc == -1);
 
             // 数式を代替（EQxxxx）に変換．
             substi = substi_pre + String(cnt).padStart(len_substi_num, '0');
             cnt = cnt + 1;
+            
+            if (no_end_punc) {
 
-            substi_code_list.push(substi);
-            equation_list.push(equation);
+                substi_code_list.push(substi);
+                equation_list.push(equation);
+                
+            } else {
+                str_punc = equation[idx_punc];
 
+                substi_code_list.push(substi);
+                substi_code_list.push(str_punc);
+                substi_code_list.push(" ");
+
+                // 数式からカンマ・ピリオドを抜く
+                equation = equation.slice(0, idx_punc) + " //]";
+                equation_list.push(equation);
+
+            }    
         }
 
         // 配列として蓄えていた代替（EQxxxx）を実際の文字列に入れる
@@ -187,15 +204,10 @@ function resetTextbox() {
 
 function keepLeftRightPair(equation) {
 
-    console.log(equation)
-
     let n_left  = (equation.match(/\\left[^a-z]/g)  || []).length;
     let n_right = (equation.match(/\\right[^a-z]/g) || []).length;
     let len_equation = equation.length;
     let len_equation_bra = 2; // the length of \\[ or \\]
-
-    console.log(n_left)
-    console.log(n_right)
 
     if (n_left == n_right) {
         ;
@@ -204,8 +216,6 @@ function keepLeftRightPair(equation) {
     } else {
         equation = equation.slice(0, len_equation_bra) + " \\left . " + equation.slice(2);
     }
-    
-    console.log(equation)
 
     return equation
 
