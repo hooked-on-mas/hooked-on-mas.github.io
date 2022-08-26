@@ -7,7 +7,7 @@ function resetTextbox() {
 function runTranslation() {
     const API_URL = 'https://api-free.deepl.com/v2/translate';
 
-    const substi_sets = {pre:"EQ", pre_small:"eq", len_num: 2};
+    let substi_sets = {pre:"EQ", pre_small:"eq", len_num: 2, cnt: 0};
 
     let equation_list = [];
 
@@ -15,10 +15,7 @@ function runTranslation() {
     let idx = 0;
     let cnt = 0;
 
-    let idx_first_dollar = 0;
-    let idx_second_dollar = 0;
     let idx_start = 0;
-    let idx_end = 0;
     let equation = "";
     let substi = "";
 
@@ -28,6 +25,8 @@ function runTranslation() {
     let separated_equation = "";
     let substi_code_list = [];
     let idx_punc = 0;
+    let replaced_string = "";
+    let replaced_equation_list = [];
     
     const API_KEY = document.getElementById("deepl_api_key").value;
     if (API_KEY == "") {
@@ -43,7 +42,7 @@ function runTranslation() {
     // 置換後のテキストはsubsti_code_listに入れる
     while (true) {
 
-        [equation, is_inline_eq, idx_equation_start] = extractFirstEquation(latex_code.slice(idx));
+        [equation, is_inline_eq, idx_equation_start, idx_equation_end] = extractFirstEquation(latex_code.slice(idx));
 
         if (equation == ""){
             break;
@@ -51,83 +50,13 @@ function runTranslation() {
 
         equation = changeEquationForMathjax(equation, is_inline_eq);
 
-        substi_code_list = [];
+        [replaced_string, replaced_equation_list, substi_sets] = replaceEquationWithSubsti(equation, is_inline_eq, substi_sets);
 
-        if (is_inline_eq) {
+        equation_list = equation_list.concat(replaced_equation_list);
 
-            reduced_equation = equation;
-            separated_equation = "";
+        latex_code = latex_code.slice(0, idx_equation_start) + " " + replaced_string + " " + latex_code.slice(idx_equation_end + 1);
 
-            // 数式内にカンマ・ピリオドがある場合，前後で分割して，2つの数式にする
-            while (true) {
-
-                [separated_equation, reduced_equation, str_punc, idx_punc] = splitEquationBeforeAndAfterSymbol(reduced_equation, /\.|,|;/, is_inline_eq);
-
-                if (idx_punc == -1) {
-                    break;
-                }
-                
-                // 等式が\left または \right を含む場合，カンマ・ピリオドによって分断されるとエラーが出るので，それの対策．
-                separated_equation = keepLeftRightPair(separated_equation);
-
-                // separated_equationをequation_listに，separated_equationに対する代替（EQxxxx）をsubsti_code_listに入れる
-                substi = substi_sets.pre + String(cnt).padStart(substi_sets.len_num, '0');
-                cnt = cnt + 1;
-
-                substi_code_list.push(substi);
-                substi_code_list.push(str_punc);
-
-                equation_list.push(separated_equation);
-
-            }
-
-            // separated_equationについてもseparated_equationと同様の処理をする
-            if (!/^\\(\(|\[)\s*\\(\)|\])$/.test(reduced_equation)) {
-
-                // 等式が\left または \right を含む場合，カンマ・ピリオドによって分断されるとエラーが出るので，それの対策．
-                reduced_equation = keepLeftRightPair(reduced_equation);
-
-                // 数式を代替（EQxxxx）に変換．
-                substi = substi_sets.pre + String(cnt).padStart(substi_sets.len_num, '0');
-                cnt = cnt + 1;
-
-                substi_code_list.push(substi);
-                equation_list.push(reduced_equation);
-                
-            }
-
-        // インライン数式でないなら，カンマ・ピリオド前後で分割する必要はない．
-        // 数式の末尾にカンマ・ピリオドがある場合のみ，それを数式の外に出す．
-        } else {
-
-            idx_punc = equation.search(/(\.|,|;)\s*\\\\]/);
-            no_end_punc = (idx_punc == -1);
-
-            // 数式を代替（EQxxxx）に変換．
-            substi = substi_sets.pre + String(cnt).padStart(substi_sets.len_num, '0');
-            cnt = cnt + 1;
-            
-            if (no_end_punc) {
-
-                substi_code_list.push(substi);
-                equation_list.push(equation);
-                
-            } else {
-                str_punc = equation[idx_punc];
-
-                substi_code_list.push(substi);
-                substi_code_list.push(str_punc);
-
-                // 数式からカンマ・ピリオドを抜く
-                equation = equation.slice(0, idx_punc) + " //]";
-                equation_list.push(equation);
-
-            }    
-        }
-
-        // 配列として蓄えていた代替（EQxxxx）を実際の文字列に入れる
-        latex_code = latex_code.slice(0, idx_start) + " " + substi_code_list.join("") + " " + latex_code.slice(idx_end + 1);
-        idx = idx_start + substi_code_list.join("").length;
+        idx = idx_equation_start + replaced_string.length;
     }
 
     // 翻訳
@@ -177,6 +106,88 @@ function preprocessLatexCode(latex_code) {
     return new_latex_code
 }
 
+function replaceEquationWithSubsti(equation, is_inline_eq, substi_sets) {
+
+    let substi_code_list = [];
+    let reduced_equation = "";
+    let separated_equation = "";
+    let equation_list = [];
+
+    let str_punc = "";
+    let idx_punc = 0;
+
+    let substi = "";
+
+    // 数式内にカンマ・ピリオドがある場合，前後で分割して，2つの数式にする
+    if (is_inline_eq) {
+
+        reduced_equation = equation;
+        separated_equation = "";
+
+        while (true) {
+
+            [separated_equation, reduced_equation, str_punc, idx_punc] = splitEquationBeforeAndAfterSymbol(reduced_equation, /\.|,|;/, is_inline_eq);
+
+            if (idx_punc == -1) {
+                break;
+            }
+            
+            separated_equation = keepLeftRightPair(separated_equation);
+
+            [substi, substi_sets] = getSubstiString(substi_sets);
+
+            substi_code_list.push(substi);
+            substi_code_list.push(str_punc);
+
+            equation_list.push(separated_equation);
+
+        }
+
+        // for the last reduced_equation
+        // 空白だけの数式でなければ，
+        if (!/^\\(\(|\[)\s*\\(\)|\])$/.test(reduced_equation)) {
+
+            reduced_equation = keepLeftRightPair(reduced_equation);
+
+            [substi, substi_sets] = getSubstiString(substi_sets);
+
+            substi_code_list.push(substi);
+            equation_list.push(reduced_equation);
+            
+        }
+
+    } else {
+
+        // 数式の末尾にカンマ・ピリオドがある場合のみ，それを数式の外に出す．
+        idx_punc = equation.search(/(\.|,|;)\s*\\\\]/);
+        no_end_punc = (idx_punc == -1);
+
+        [substi, substi_sets] = getSubstiString(substi_sets);
+        
+        if (no_end_punc) {
+
+            substi_code_list.push(substi);
+            equation_list.push(equation);
+            
+        } else {
+            str_punc = equation[idx_punc];
+
+            substi_code_list.push(substi);
+            substi_code_list.push(str_punc);
+
+            // 数式からカンマ・ピリオドを抜く
+            equation = equation.slice(0, idx_punc) + " //]";
+            equation_list.push(equation);
+
+        }    
+    }
+
+    let replaced_equation = substi_code_list.join("");
+
+    return [replaced_equation, equation_list, substi_sets]
+
+}
+
 function extractFirstEquation(latex_code) {
 
     let equation = "";
@@ -211,7 +222,7 @@ function extractFirstEquation(latex_code) {
 
     }
 
-    return [equation, is_inline_eq, idx_equation_start]
+    return [equation, is_inline_eq, idx_equation_start, idx_equation_end]
 
 }
 
@@ -288,6 +299,16 @@ function keepLeftRightPair(equation) {
 
     return equation
 
+}
+
+function getSubstiString(substi_sets) {
+
+    let cnt = substi_sets.cnt;
+    substi = substi_sets.pre + String(cnt).padStart(substi_sets.len_num, '0');
+    cnt = cnt + 1;
+    substi_sets.cnt = cnt;
+
+    return [substi, substi_sets]
 }
 
 function replaceSubstiWithEquation(translation_result, equation_list, substi_sets) {
