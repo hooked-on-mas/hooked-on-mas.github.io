@@ -15,6 +15,8 @@ function runTranslation() {
     let idx = 0;
     let cnt = 0;
 
+    let idx_first_dollar = 0;
+    let idx_second_dollar = 0;
     let idx_start = 0;
     let idx_end = 0;
     let equation = "";
@@ -40,35 +42,14 @@ function runTranslation() {
     // 数式を一旦equation_listに保管して，EQxxで置き換える
     // 置換後のテキストはsubsti_code_listに入れる
     while (true) {
-        idx_start = latex_code.indexOf('$', idx);
-        idx_end = latex_code.indexOf('$', idx_start + 1);
 
-        // これ以上数式がなければ，ループを終了
-        if (idx_start == -1){
+        [equation, is_inline_eq, idx_equation_start] = extractFirstEquation(latex_code.slice(idx));
+
+        if (equation == ""){
             break;
         }
 
-        // 数式をMathjax向けに変更．
-        // 別行立て数式の場合
-        if (idx_end - idx_start == 1){
-            idx_end = latex_code.indexOf('$', idx_end + 1) + 1;
-            equation = latex_code.slice(idx_start, idx_end + 1);
-
-            // $$...$$を\[...\]に変換
-            equation = "\\[" + equation.slice(2, equation.length - 2) + "\\]";
-
-            is_inline_eq = false;
-            
-        // インライン数式の場合
-        } else {
-            equation = latex_code.slice(idx_start, idx_end + 1);
-            
-            // $...$を\(...\)に変換
-            equation = "\\(" + equation.slice(1, equation.length - 1) + "\\)";
-
-            is_inline_eq = true;
-
-        }
+        equation = changeEquationForMathjax(equation, is_inline_eq);
 
         substi_code_list = [];
 
@@ -80,24 +61,11 @@ function runTranslation() {
             // 数式内にカンマ・ピリオドがある場合，前後で分割して，2つの数式にする
             while (true) {
 
-                idx_punc = reduced_equation.search(/\.|,|;/);
+                [separated_equation, reduced_equation, str_punc, idx_punc] = splitEquationBeforeAndAfterSymbol(reduced_equation, /\.|,|;/, is_inline_eq);
+
                 if (idx_punc == -1) {
                     break;
                 }
-
-                str_punc = reduced_equation[idx_punc];
-
-                // カンマ・ピリオドの前をseparated_equation, 後をreduced_equationとする
-                // reduced_equation -> separated_equation + punctuation + reduced_equation
-                separated_equation = reduced_equation.slice(0, idx_punc);
-                reduced_equation = reduced_equation.slice(idx_punc + 1);
-
-                // 分割するだけでは，\( \)の記号も分割されてしまいエラーが出るので，付け足す
-                // e.g.
-                // separated_equation : \( xxxx  -> \( xxxx \)
-                // reduced_equation   :  xxxx \) -> \( xxxx \)
-                separated_equation = separated_equation + "\\)";
-                reduced_equation = "\\(" + reduced_equation;
                 
                 // 等式が\left または \right を含む場合，カンマ・ピリオドによって分断されるとエラーが出るので，それの対策．
                 separated_equation = keepLeftRightPair(separated_equation);
@@ -207,6 +175,100 @@ function preprocessLatexCode(latex_code) {
     }
 
     return new_latex_code
+}
+
+function extractFirstEquation(latex_code) {
+
+    let equation = "";
+    let is_inline_eq = true;
+    let idx_equation_start = 0;
+    let idx_equation_end = 0;
+
+    let idx_first_dollar  = latex_code.indexOf('$');
+    let idx_second_dollar = latex_code.indexOf('$', idx_first_dollar + 1);
+
+    if (idx_first_dollar == -1) {
+        
+        equation = "";
+
+    } else {
+
+        is_inline_eq = (idx_first_dollar + 1 != idx_second_dollar);
+    
+        if (is_inline_eq) {
+            
+            idx_equation_start = idx_first_dollar;
+            idx_equation_end = idx_second_dollar;
+            
+        } else {
+    
+            idx_equation_start = idx_first_dollar;
+            idx_equation_end = latex_code.indexOf('$', idx_second_dollar + 1) + 1;
+    
+        }
+    
+        equation = latex_code.slice(idx_equation_start, idx_equation_end + 1);
+
+    }
+
+    return [equation, is_inline_eq, idx_equation_start]
+
+}
+
+function changeEquationForMathjax(equation, is_inline_eq) {
+
+    if (is_inline_eq) {
+
+        equation = "\\(" + equation.slice(1, equation.length - 1) + "\\)";
+
+    } else {
+
+        equation = "\\[" + equation.slice(2, equation.length - 2) + "\\]";
+
+    }
+
+    return equation  
+
+}
+
+function splitEquationBeforeAndAfterSymbol(equation, symbol_reg, is_inline_eq) {
+
+    let first_equation = "";
+    let second_equation = "";
+    let str_symbol = "";
+
+    let idx_symbol = equation.search(symbol_reg);
+
+    if (idx_symbol != -1) {
+
+        str_symbol = equation[idx_symbol];
+    
+        // str_symbolの前をfirst_equation, 後をsecond_equationとする
+        // reduced_equation -> separated_equation + punctuation + reduced_equation
+        first_equation = equation.slice(0, idx_symbol);
+        second_equation = equation.slice(idx_symbol + 1);
+    
+        // 分割するだけでは，\( \)の記号も分割されてしまいエラーが出るので，付け足す
+        // e.g.
+        // separated_equation : \( xxxx  -> \( xxxx \)
+        // reduced_equation   :  xxxx \) -> \( xxxx \)
+    
+        if (is_inline_eq) {
+    
+            first_equation = first_equation + "\\)";
+            second_equation = "\\(" + second_equation;
+    
+        } else {
+    
+            first_equation = first_equation + "\\]";
+            second_equation = "\\[" + second_equation;
+    
+        }
+
+    }
+
+    return [first_equation, second_equation, str_symbol, idx_symbol]
+
 }
 
 function keepLeftRightPair(equation) {
