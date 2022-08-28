@@ -25,10 +25,27 @@ function runTranslation() {
 
     let r = [];
     
-    const API_KEY = document.getElementById("deepl_api_key").value;
-    if (API_KEY == "") {
-        document.getElementById('result').innerHTML = "<a href='https://www.deepl.com/pro#developer'>このリンク</a>からDeepLのAPIキーを取得し，入力してください．.";
+    let api_elm = document.getElementById("deepl_api_key");
+    const API_KEY = api_elm.value;
+
+    if ((API_KEY != "") && (api_elm.classList.contains("is-primary"))) {
+        document.getElementById("warning_api_key").style.display = "none";
+
+    } else if (API_KEY == "") {
+        document.getElementById("warning_api_key").style.display = "block";
+        document.getElementById('warning_api_key').innerHTML = "<a href='https://www.deepl.com/pro#developer'>このリンク</a>からDeepLのAPIキーを取得し，右上の欄に入力してください．";
+
+        api_elm.classList.remove("is-primary");
+        api_elm.classList.add("is-danger");
+        api_elm.style.backgroundColor = "#ffecf4";
         return;
+
+    } else if (api_elm.classList.contains("is-danger")) {
+        document.getElementById("warning_api_key").style.display = "none";
+
+        api_elm.classList.remove("is-danger");
+        api_elm.classList.add("is-primary");
+        api_elm.style.backgroundColor = "white";
     }
 
     let latex_code = document.getElementById("input_code").value;
@@ -59,6 +76,8 @@ function runTranslation() {
         idx = idx_equation_start + replaced_string.length;
     }
 
+    console.log(latex_code)
+
     // 翻訳
     let url = API_URL + '?' + encodeURI('auth_key=' + API_KEY + '&text=' + latex_code + '&source_lang=EN&target_lang=JA');
   
@@ -74,6 +93,8 @@ function runTranslation() {
             let translation_result = data["translations"][0]["text"];
 
             translation_result = replaceSubstiWithEquation(translation_result, equation_list, substi_sets);
+            console.log(translation_result)
+
 
             document.getElementById('result').textContent = translation_result;
             MathJax.typesetPromise()

@@ -1,67 +1,11 @@
-h1 {
-    font-size: 23px;
+#warning_api_key {
+    display: none;
 }
 
-h2 {
-    font-size: 16px;
-}
-
-#deepl_api_key{
-    width: 20em;
-    padding: 3px;
-    margin: 0 0 0.5em 0;
-}
-
-.text_box{
-    display: inline-block;
-    width: 100%;
-    padding: 10px;
-    border: 1px solid #999;
-    box-sizing: border-box;
-    background: #f2f2f2;
-    margin: 0 0 0.5em 0;
-    line-height: 1.5;
-    height: 40em;
-}
-
-#result{
-    padding: 10px;
+#result {
     white-space: pre-wrap;
-    font-size: 16px;
-    line-height: 25px;
 }
 
-#input_block {
-    float: left;
-    width: 50%;
-    height: auto;
- }
- 
-#output_block {
-    float: right;
-    width: 50%;
-    height: auto;
+#navbar_title {
+    font-size: x-large;
 }
-
-#run_translation {
-    width: 9em;
-    height: 4em;
-    background: #fddeae;
-    border: 1px solid #999;
-    font-size: 16px;
-    font-weight: bold;
-}
-
-#run_translation:hover {
-    background: #fff5db; 
-}
-
-
-#run_translation:active {
-    background: #fafafa; 
-}
-
-::placeholder {
-    font-size: 0.9em;
-    color: #aaa;
- }
