@@ -13,20 +13,17 @@ function runTranslation() {
 
     // 初期化
     let idx = 0;
-    let cnt = 0;
+    let idx_equation_start = 0;
+    let idx_equation_end = 0;
 
-    let idx_start = 0;
     let equation = "";
-    let substi = "";
 
     let is_inline_eq = false;
 
-    let reduced_equation = "";
-    let separated_equation = "";
-    let substi_code_list = [];
-    let idx_punc = 0;
     let replaced_string = "";
     let replaced_equation_list = [];
+
+    let r = [];
     
     const API_KEY = document.getElementById("deepl_api_key").value;
     if (API_KEY == "") {
@@ -42,7 +39,10 @@ function runTranslation() {
     // 置換後のテキストはsubsti_code_listに入れる
     while (true) {
 
-        [equation, is_inline_eq, idx_equation_start, idx_equation_end] = extractFirstEquation(latex_code.slice(idx));
+        r = extractFirstEquation(latex_code.slice(idx));
+        [equation, is_inline_eq, idx_equation_start, idx_equation_end] = r;
+        idx_equation_start = idx_equation_start + idx;
+        idx_equation_end   = idx_equation_end + idx;
 
         if (equation == ""){
             break;
@@ -50,11 +50,11 @@ function runTranslation() {
 
         equation = changeEquationForMathjax(equation, is_inline_eq);
 
-        [replaced_string, replaced_equation_list, substi_sets] = replaceEquationWithSubsti(equation, is_inline_eq, substi_sets);
+        [replaced_string, replaced_equation_list] = replaceEquationWithSubsti(equation, is_inline_eq, substi_sets);
 
         equation_list = equation_list.concat(replaced_equation_list);
 
-        latex_code = latex_code.slice(0, idx_equation_start) + " " + replaced_string + " " + latex_code.slice(idx_equation_end + 1);
+        latex_code = latex_code.slice(0, idx_equation_start) + replaced_string + latex_code.slice(idx_equation_end + 1);
 
         idx = idx_equation_start + replaced_string.length;
     }
@@ -72,6 +72,7 @@ function runTranslation() {
         }).then(function (data) {
             
             let translation_result = data["translations"][0]["text"];
+
             translation_result = replaceSubstiWithEquation(translation_result, equation_list, substi_sets);
 
             document.getElementById('result').textContent = translation_result;
@@ -106,6 +107,40 @@ function preprocessLatexCode(latex_code) {
     return new_latex_code
 }
 
+function extractFirstEquation(latex_code) {
+
+    let equation = "";
+    let is_inline_eq = true;
+    let idx_equation_start = 0;
+    let idx_equation_end = 0;
+
+    let idx_first_dollar  = latex_code.indexOf('$');
+    let idx_second_dollar = latex_code.indexOf('$', idx_first_dollar + 1);
+
+    if (idx_first_dollar != -1) {
+
+        is_inline_eq = (idx_second_dollar - idx_first_dollar != 1);
+    
+        if (is_inline_eq) {
+            
+            idx_equation_start = idx_first_dollar;
+            idx_equation_end = idx_second_dollar;
+            
+        } else {
+    
+            idx_equation_start = idx_first_dollar;
+            idx_equation_end = latex_code.indexOf('$', idx_second_dollar + 1) + 1;
+    
+        }
+    
+        equation = latex_code.slice(idx_equation_start, idx_equation_end + 1);
+
+    }
+
+    return [equation, is_inline_eq, idx_equation_start, idx_equation_end];
+
+}
+
 function replaceEquationWithSubsti(equation, is_inline_eq, substi_sets) {
 
     let substi_code_list = [];
@@ -134,22 +169,22 @@ function replaceEquationWithSubsti(equation, is_inline_eq, substi_sets) {
             
             separated_equation = keepLeftRightPair(separated_equation);
 
-            [substi, substi_sets] = getSubstiString(substi_sets);
+            substi = getSubstiString(substi_sets);
 
             substi_code_list.push(substi);
             substi_code_list.push(str_punc);
+            substi_code_list.push(" ");
 
             equation_list.push(separated_equation);
 
         }
 
-        // for the last reduced_equation
-        // 空白だけの数式でなければ，
+        // 空白だけの数式の時のみ処理
         if (!/^\\(\(|\[)\s*\\(\)|\])$/.test(reduced_equation)) {
 
             reduced_equation = keepLeftRightPair(reduced_equation);
 
-            [substi, substi_sets] = getSubstiString(substi_sets);
+            substi = getSubstiString(substi_sets);
 
             substi_code_list.push(substi);
             equation_list.push(reduced_equation);
@@ -159,24 +194,29 @@ function replaceEquationWithSubsti(equation, is_inline_eq, substi_sets) {
     } else {
 
         // 数式の末尾にカンマ・ピリオドがある場合のみ，それを数式の外に出す．
-        idx_punc = equation.search(/(\.|,|;)\s*\\\\]/);
+        idx_punc = equation.search(/(\.|,|;)\s*\\]/);
         no_end_punc = (idx_punc == -1);
 
-        [substi, substi_sets] = getSubstiString(substi_sets);
+        substi = getSubstiString(substi_sets);
         
         if (no_end_punc) {
 
+            // ブロック数式の場合，前後に空白がない事が多いので，空白を入れる．
+            substi_code_list.push(" ");
             substi_code_list.push(substi);
+            substi_code_list.push(" ");
             equation_list.push(equation);
             
         } else {
             str_punc = equation[idx_punc];
 
+            substi_code_list.push(" ");
             substi_code_list.push(substi);
             substi_code_list.push(str_punc);
+            substi_code_list.push(" ");
 
             // 数式からカンマ・ピリオドを抜く
-            equation = equation.slice(0, idx_punc) + " //]";
+            equation = equation.slice(0, idx_punc) + " \\]";
             equation_list.push(equation);
 
         }    
@@ -184,45 +224,7 @@ function replaceEquationWithSubsti(equation, is_inline_eq, substi_sets) {
 
     let replaced_equation = substi_code_list.join("");
 
-    return [replaced_equation, equation_list, substi_sets]
-
-}
-
-function extractFirstEquation(latex_code) {
-
-    let equation = "";
-    let is_inline_eq = true;
-    let idx_equation_start = 0;
-    let idx_equation_end = 0;
-
-    let idx_first_dollar  = latex_code.indexOf('$');
-    let idx_second_dollar = latex_code.indexOf('$', idx_first_dollar + 1);
-
-    if (idx_first_dollar == -1) {
-        
-        equation = "";
-
-    } else {
-
-        is_inline_eq = (idx_first_dollar + 1 != idx_second_dollar);
-    
-        if (is_inline_eq) {
-            
-            idx_equation_start = idx_first_dollar;
-            idx_equation_end = idx_second_dollar;
-            
-        } else {
-    
-            idx_equation_start = idx_first_dollar;
-            idx_equation_end = latex_code.indexOf('$', idx_second_dollar + 1) + 1;
-    
-        }
-    
-        equation = latex_code.slice(idx_equation_start, idx_equation_end + 1);
-
-    }
-
-    return [equation, is_inline_eq, idx_equation_start, idx_equation_end]
+    return [replaced_equation, equation_list];
 
 }
 
@@ -276,6 +278,8 @@ function splitEquationBeforeAndAfterSymbol(equation, symbol_reg, is_inline_eq) {
     
         }
 
+    } else {
+        second_equation = equation;
     }
 
     return [first_equation, second_equation, str_symbol, idx_symbol]
@@ -308,7 +312,7 @@ function getSubstiString(substi_sets) {
     cnt = cnt + 1;
     substi_sets.cnt = cnt;
 
-    return [substi, substi_sets]
+    return substi
 }
 
 function replaceSubstiWithEquation(translation_result, equation_list, substi_sets) {
