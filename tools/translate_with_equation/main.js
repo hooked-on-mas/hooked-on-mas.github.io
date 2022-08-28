@@ -76,8 +76,6 @@ function runTranslation() {
         idx = idx_equation_start + replaced_string.length;
     }
 
-    console.log(latex_code)
-
     // 翻訳
     let url = API_URL + '?' + encodeURI('auth_key=' + API_KEY + '&text=' + latex_code + '&source_lang=EN&target_lang=JA');
   
@@ -93,11 +91,11 @@ function runTranslation() {
             let translation_result = data["translations"][0]["text"];
 
             translation_result = replaceSubstiWithEquation(translation_result, equation_list, substi_sets);
-            console.log(translation_result)
-
 
             document.getElementById('result').textContent = translation_result;
             MathJax.typesetPromise()
+
+            goOutputSection();
 
         }).catch(function(error) {
             document.getElementById('result').textContent = error.message;
@@ -355,4 +353,15 @@ function replaceSubstiWithEquation(translation_result, equation_list, substi_set
     }
 
     return translation_result
+}
+
+function goOutputSection() {
+
+    const output_pos = document.getElementById("output").getBoundingClientRect().top;
+
+    window.scrollTo({
+        top: output_pos,
+        behavior: 'smooth'
+    });
+
 }
