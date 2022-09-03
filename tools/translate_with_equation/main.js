@@ -28,24 +28,32 @@ function runTranslation() {
     let api_elm = document.getElementById("deepl_api_key");
     const API_KEY = api_elm.value;
 
-    if ((API_KEY != "") && (api_elm.classList.contains("is-primary"))) {
+    let have_api_key = API_KEY != "";
+
+    if (have_api_key) {
         document.getElementById("warning_api_key").style.display = "none";
 
-    } else if (API_KEY == "") {
+        if (api_elm.classList.contains("is-danger")) {
+
+            api_elm.classList.remove("is-danger");
+            api_elm.classList.add("is-primary");
+            api_elm.style.backgroundColor = "white";
+
+        }        
+
+    } else {
+
         document.getElementById("warning_api_key").style.display = "block";
         document.getElementById('warning_api_key').innerHTML = "<a href='https://www.deepl.com/pro#developer'>このリンク</a>からDeepLのAPIキーを取得し，右上の欄に入力してください．";
 
         api_elm.classList.remove("is-primary");
         api_elm.classList.add("is-danger");
         api_elm.style.backgroundColor = "#ffecf4";
+        
+        document.getElementById('result').textContent = "";
+
         return;
 
-    } else if (api_elm.classList.contains("is-danger")) {
-        document.getElementById("warning_api_key").style.display = "none";
-
-        api_elm.classList.remove("is-danger");
-        api_elm.classList.add("is-primary");
-        api_elm.style.backgroundColor = "white";
     }
 
     let latex_code = document.getElementById("input_code").value;
@@ -84,7 +92,10 @@ function runTranslation() {
             if (response.ok) {
                 return response.json();
             } else {
-                throw new Error("DeepL APIにアクセスできません．");
+
+                document.getElementById("warning_api_key").style.display = "block";
+                document.getElementById('warning_api_key').innerHTML = "DeepL APIにアクセスできません。以下の内容についてチェックしてください。<ul><li>APIキーが正確か→<a href='https://www.deepl.com/ja/account/summary'>アカウント</a></li><li>利用可能文字数が最大に達していないか→<a href='https://www.deepl.com/ja/account/usage'>ご利用状況</a></li><li>インターネットが正しく接続されているか</li></ul>";
+            
             }
         }).then(function (data) {
             
