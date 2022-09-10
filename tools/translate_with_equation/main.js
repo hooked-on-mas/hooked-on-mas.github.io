@@ -36,7 +36,7 @@ function runTranslation() {
         if (api_elm.classList.contains("is-danger")) {
 
             api_elm.classList.remove("is-danger");
-            api_elm.classList.add("is-primary");
+            api_elm.classList.add("is-info");
             api_elm.style.backgroundColor = "white";
 
         }        
@@ -46,7 +46,7 @@ function runTranslation() {
         document.getElementById("warning_api_key").style.display = "block";
         document.getElementById('warning_api_key').innerHTML = "<a href='https://www.deepl.com/pro#developer'>このリンク</a>からDeepLのAPIキーを取得し，右上の欄に入力してください．";
 
-        api_elm.classList.remove("is-primary");
+        api_elm.classList.remove("is-info");
         api_elm.classList.add("is-danger");
         api_elm.style.backgroundColor = "#ffecf4";
         
@@ -375,4 +375,13 @@ function goOutputSection() {
         behavior: 'smooth'
     });
 
+}
+
+function captureOutput() {
+    html2canvas(document.getElementById("result")).then((canvas) => {
+        const link = document.createElement('a')
+        link.href = canvas.toDataURL()
+        link.download = `result.png`
+        link.click()
+    })
 }
