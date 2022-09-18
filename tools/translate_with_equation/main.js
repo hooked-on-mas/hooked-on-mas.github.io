@@ -8,8 +8,7 @@ function runTranslation() {
     const API_URL = 'https://api-free.deepl.com/v2/translate';
 
     let substi_sets = {pre:"EQ", pre_small:"eq", len_num: 2, cnt: 0};
-
-    let equation_list = [];
+    let substi_sand_sets = {pre:"SW", len_num: 2, cnt: 0};
 
     // 初期化
     let idx = 0;
@@ -20,7 +19,11 @@ function runTranslation() {
 
     let is_inline_eq = false;
 
+    let sandwich_list = [];
+    let replaced_sandwich_list = [];
+
     let replaced_string = "";
+    let equation_list = [];
     let replaced_equation_list = [];
 
     let r = [];
@@ -75,8 +78,10 @@ function runTranslation() {
 
         equation = changeEquationForMathjax(equation, is_inline_eq);
 
-        [replaced_string, replaced_equation_list] = replaceEquationWithSubsti(equation, is_inline_eq, substi_sets);
+        [equation, replaced_sandwich_list] = replaceSandwichWithSubsti(equation, substi_sand_sets);
+        sandwich_list = sandwich_list.concat(replaced_sandwich_list);
 
+        [replaced_string, replaced_equation_list] = replaceEquationWithSubsti(equation, is_inline_eq, substi_sets);
         equation_list = equation_list.concat(replaced_equation_list);
 
         latex_code = latex_code.slice(0, idx_equation_start) + replaced_string + latex_code.slice(idx_equation_end + 1);
@@ -101,7 +106,8 @@ function runTranslation() {
             
             let translation_result = data["translations"][0]["text"];
 
-            translation_result = replaceSubstiWithEquation(translation_result, equation_list, substi_sets);
+            translation_result = replaceSubstiWithStringList(translation_result, equation_list, substi_sets);
+            translation_result = replaceSubstiWithStringList(translation_result, sandwich_list, substi_sand_sets);
 
             document.getElementById('result').textContent = translation_result;
             MathJax.typesetPromise()
@@ -116,6 +122,7 @@ function runTranslation() {
 function preprocessLatexCode(latex_code) {
     // LaTeXでは1回の改行は無視されて，2回の改行でやっと改行になるという仕様に対応するため，
     // 1改行の改行は削除して，2回の改行はそのままにする．
+    // すべてのピリオドの後に空白を追加する．
     
     let idx_newline = 0;
     let new_latex_code = "";
@@ -128,7 +135,7 @@ function preprocessLatexCode(latex_code) {
             break;
         }
 
-        new_latex_code = new_latex_code + latex_code.slice(0, idx_newline + 1);
+        new_latex_code = new_latex_code + latex_code.slice(0, idx_newline + 1) + " ";
         latex_code = latex_code.slice(idx_newline + 2);
 
         idx_newline = idx_newline + 1;
@@ -171,7 +178,192 @@ function extractFirstEquation(latex_code) {
 
 }
 
+function replaceSandwichWithSubsti(string, substi_sand_sets) {
+    // Function:
+    //      ペアとなる文字列（\left, \rightなど）によって挟まれた部分（sandwich）を文字列で置き換える．
+    //      ただし，サンドイッチの中にサンドイッチがある場合は，外側のサンドイッチだけを置き換える．
+    // Input:
+    //      string               (string): 入力文字列
+    //      substi_sand_sets     (object): 挟まれた部分を置き換える代替に関する情報
+    // Output:
+    //      replaced_string      (string): 置き換えられた文字列
+    //      replaced_sandwich_list (list): 置き換えられた部分のリスト
+    // e.g.
+    //      replaceSandwichWithSubsti("\\( a_\{b, c\} \\)", substi_sand_sets) => ["\\( a_SW00 \\)", ["\{b, c\}"]] 
+    //      replaceSandwichWithSubsti("\\( \\left \( a, b, c \\right \) \\)", substi_sand_sets) => ["\\( SW01 \) \\)", ["\\left \( a, b, c \\right"]] 
+    //      replaceSandwichWithSubsti("\\( \\left \( a_\{b, c\}, d, e \\right \) \\)", substi_sand_sets) => ["\\( SW01 \) \\)", ["\\left \( a_\{b, c\}, d, e \\right"]] 
+    
+    const search_list = ["\\left", "\\right", "\{", "\}"];
+    const pair_list = [{first_part: "\\left", second_part: "\\right"}, {first_part: "\{", second_part: "\}"}];
+
+    let replaced_string = "";
+    let replaced_sandwich_list = [];
+    let idx_start = 0;
+
+    let idx_sandwich_list = indexOutermostPair(string, pair_list);
+
+    for (let i = 0; i < idx_sandwich_list.length; i++) {
+
+        replaced_sandwich_list.push(string.slice(idx_sandwich_list[i].idx_head, idx_sandwich_list[i].idx_end + 1));
+        replaced_string = replaced_string + string.slice(idx_start, idx_sandwich_list[i].idx_head) + getSubstiString(substi_sand_sets);
+        idx_start = idx_sandwich_list[i].idx_end + 1;
+    }
+
+    replaced_string = replaced_string + string.slice(idx_start, string.length);
+
+    return [replaced_string, replaced_sandwich_list];
+}
+
+function indexOutermostPair(string, pair_list) {
+    // Function:
+    //      文字列string中のペアとなる文字列（\left, \rightなど）によって挟まれた部分（sandwich）の始めのインデックスと最後のインデックスをオブジェクトとし，
+    //      全てを配列に格納して返す．
+    // Input:
+    //      string          (string): 入力文字列
+    //      pair_list         (list): ペア
+    // Output:
+    //      obj_idx_sandwich_list     (list): sandwichの始めのインデックスと最後のインデックスをオブジェクトにして，配列にまとめたもの
+    // e.g.
+    //      string = "\\( \\left \( a_\{b, c\}, d, e \\right \) f_\{g\} \\)";
+    //      pair_list = [{first_part: "\\left", second_part: "\\right"}, {first_part: "\{", second_part: "\}"}];
+    //      indexOutermostPair(string, pair_list) => [{idx_head: 3, idx_end: 31}, {idx_head: 37, idx_end: 39}];
+    
+    let search_list = [];
+    let first_part_list = [];
+    let index_object = {};
+    
+    let idx_sandwich_list = [];
+
+    for (let i = 0; i < pair_list.length; i++) {
+
+        search_list.push(pair_list[i].first_part);
+        search_list.push(pair_list[i].second_part);
+        
+        first_part_list.push(pair_list[i].first_part);
+
+    }
+
+    let index_object_list = allIndexOfList(string, search_list);
+
+    
+    // first_partだったら +1, second_partだったら -1，point==0だったら最も外側ということ．
+    let point = 0;
+
+    for (i = 0; i < index_object_list.length; i++) {
+
+        index_object = index_object_list[i];
+
+        if (first_part_list.includes(index_object.str)) {
+
+            if (point == 0) {
+
+                idx_sandwich_list.push(index_object.idx);
+    
+            }
+            
+            point = point + 1;
+
+        } else {
+
+            point = point - 1;
+
+            if (point == 0) {
+    
+                idx_sandwich_list.push(index_object.idx + index_object.str.length - 1);
+    
+            }
+        }
+    }
+    
+    // ただインデックスを入れただけのidx_sandwich_listを，sandwichの始めと最後を区別して，オブジェクトにする．
+    // idx_sandwich_listの中身は，頭・尾・頭・尾の順に並んでいるので，それを活かす．
+    let is_head = true;
+    let obj_sandwich = {};
+    let obj_idx_sandwich_list = [];
+
+    for (let i = 0; i < idx_sandwich_list.length; i++) {
+
+        if (is_head) {
+
+            obj_sandwich.idx_head = idx_sandwich_list[i];
+            is_head = false;
+
+        } else {
+
+            obj_sandwich.idx_end = idx_sandwich_list[i];
+            obj_idx_sandwich_list.push(obj_sandwich)
+            is_head = true;
+            obj_sandwich = {};
+
+        }
+    }
+
+    return obj_idx_sandwich_list;
+}
+
+
+function allIndexOfList(string, search_list) {
+    // Function:
+    //      文字列string中の検索対象search_listの各要素のインデックスを示す．
+    // Input:
+    //      string          (string): 入力文字列
+    //      search_all_list (list): 検索対象の配列
+    // Output:
+    //      index_object_list: 検索結果をオブジェクト{idx: xx, str: yy}のリストで返す．また，そのリストはidxについての昇順で並んでいる．
+    // e.g.
+    //      string = "\\( \\left \( a_\{b, c\}, d, e \\right \) \\)";
+    //      search_list = ["\\left", "\\right", "\{", "\}"];
+    //      allIndexOfList(string, search_list) => [{idx:3, str:"\\left"}, {idx:13, str:"\{"}}, {idx:18, str:"\}"}, {idx:26, str:"\\right"}]
+    
+    let search_string = "";
+    let idx_start = 0;
+    let idx_result = 0;
+    let result_object = {};
+    let result_object_list = [];
+
+    for (let i = 0; i < search_list.length; i++) {
+
+        idx_start = 0;
+        search_string = search_list[i];
+
+        while (true) {
+            
+            idx_result = string.indexOf(search_string, idx_start);
+            if (idx_result == -1) {
+                break;
+            }
+
+            result_object = {
+                idx: idx_result,
+                str: search_string
+            };
+
+            idx_start = idx_result + 1;
+
+            result_object_list.push(result_object);
+
+        }
+
+    }
+    
+    result_object_list = result_object_list.sort((a, b) => a.idx - b.idx);
+
+    return result_object_list;
+
+}
+
 function replaceEquationWithSubsti(equation, is_inline_eq, substi_sets) {
+    // Function:
+    //      数式の文字列を，文字列に置き換える．ただし，句読点の前後で文字列を分割する．
+    // Input:
+    //      equation   (string): 数式の文字列
+    //      is_inline_eq (bool): インライン数式かどうか
+    //      substi_set (object): 代替に関する情報
+    // Output: 
+    //      replaced_equation (string): 数式を代替記号 (EQxxx)で置き換えた後の文字列
+    //      equation_list (list): 数式の文字列の配列
+    // e.g.
+    //      replaceEquationWithSubsti("\\(a, b\\)", true, substi_sets) => ["EQ00, EQ001", ["\\(a\\)", "\\(b\\)"]]
 
     let substi_code_list = [];
     let reduced_equation = "";
@@ -196,8 +388,6 @@ function replaceEquationWithSubsti(equation, is_inline_eq, substi_sets) {
             if (idx_punc == -1) {
                 break;
             }
-            
-            separated_equation = keepLeftRightPair(separated_equation);
 
             substi = getSubstiString(substi_sets);
 
@@ -211,8 +401,6 @@ function replaceEquationWithSubsti(equation, is_inline_eq, substi_sets) {
 
         // 空白だけの数式の時のみ処理
         if (!/^\\(\(|\[)\s*\\(\)|\])$/.test(reduced_equation)) {
-
-            reduced_equation = keepLeftRightPair(reduced_equation);
 
             substi = getSubstiString(substi_sets);
 
@@ -316,25 +504,6 @@ function splitEquationBeforeAndAfterSymbol(equation, symbol_reg, is_inline_eq) {
 
 }
 
-function keepLeftRightPair(equation) {
-
-    let n_left  = (equation.match(/\\left[^a-z]/g)  || []).length;
-    let n_right = (equation.match(/\\right[^a-z]/g) || []).length;
-    let len_equation = equation.length;
-    let len_equation_bra = 2; // the length of \\[ or \\]
-
-    if (n_left == n_right) {
-        ;
-    } else if (n_left > n_right) {
-        equation = equation.slice(0, len_equation - len_equation_bra) + " \\right . " + equation.slice(len_equation - len_equation_bra);
-    } else {
-        equation = equation.slice(0, len_equation_bra) + " \\left . " + equation.slice(2);
-    }
-
-    return equation
-
-}
-
 function getSubstiString(substi_sets) {
 
     let cnt = substi_sets.cnt;
@@ -345,25 +514,38 @@ function getSubstiString(substi_sets) {
     return substi
 }
 
-function replaceSubstiWithEquation(translation_result, equation_list, substi_sets) {
-    // 翻訳結果の記号EQxxに実際の数式を代入
+function getSubstiStringIdx(substi_sets, idx) {
 
-    let equation = "";
+    substi = substi_sets.pre + String(idx).padStart(substi_sets.len_num, '0');
+
+    return substi
+}
+
+function getSubstiStringIdxSmall(substi_sets, idx) {
+
+    substi = substi_sets.pre_small + String(idx).padStart(substi_sets.len_num, '0');
+
+    return substi
+}
+
+function replaceSubstiWithStringList(text, string_list, substi_sets) {
+
+    let string = "";
     let substi = "";
 
-    for (let i = 0; i < equation_list.length; i++) {
+    for (let i = 0; i < string_list.length; i++) {
 
-        equation = equation_list[i];
+        string = string_list[i];
 
-        substi = substi_sets.pre + String(i).padStart(substi_sets.len_num, '0');
-        translation_result = translation_result.replace(substi, equation);
+        substi = getSubstiStringIdx(substi_sets, i);
+        text = text.replace(substi, string);
 
         // たまに翻訳によって，"EQxxxx"から"eqxxxx"になることがあるので．
-        substi = substi_sets.pre_small + String(i).padStart(substi_sets.len_num, '0');
-        translation_result = translation_result.replace(substi, equation);
+        substi = getSubstiStringIdxSmall(substi_sets, i);
+        text = text.replace(substi, string);
     }
 
-    return translation_result
+    return text
 }
 
 function goOutputSection() {
